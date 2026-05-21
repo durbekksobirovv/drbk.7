@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. MASTER CATCH-ALL (DEFAULT DENY)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+
+    // --- ENTITY VALIDATION ---
+    function isValidRoom(data) {
+      return data.id is string && data.id.size() >= 1 &&
+             data.hostId is string && data.hostId.size() >= 1 &&
+             data.status in ['waiting', 'active', 'closed'];
+    }
+
+    function isValidStroke(data) {
+      return data.roomId is string && data.userId == request.auth.uid &&
+             data.points is list && data.points.size() > 0 &&
+             data.color is string && data.brushSize is number &&
+             data.tool in ['pen', 'eraser'];
+    }
+
+    function isValidMessage(data) {
+      return data.roomId is string && data.userId == request.auth.uid &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 1000;
+    }
+
+    // --- COLLECTIONS ---
+
+    match /userProfiles/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid);
+    }
+
+    match /rooms/{roomId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); // We rely on room ID knowledge
+      
+      allow create: if isSignedIn() && isValidRoom(incoming()) && incoming().hostId == request.auth.uid;
+      
+      allow update: if isSignedIn() && (
+        // Action: Join
+        (existing().status == 'waiting' && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['participantId', 'status']) &&
+         incoming().participantId == request.auth.uid && 
+         incoming().status == 'active') ||
+        // Action: Close (Host only)
+        (existing().hostId == request.auth.uid && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
+         incoming().status == 'closed')
+      );
+
+      // Sub-collections: Strokes & Messages
+      match /strokes/{strokeId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid ||
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.participantId == request.auth.uid
+        );
+        allow create: if isSignedIn() && isValidStroke(incoming()) && (
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid ||
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.participantId == request.auth.uid
+        );
+      }
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid ||
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.participantId == request.auth.uid
+        );
+        allow create: if isSignedIn() && isValidMessage(incoming()) && (
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid ||
+          get(/databases/$(database)/documents/rooms/$(roomId)).data.participantId == request.auth.uid
+        );
+      }
+    }
+  }
+}

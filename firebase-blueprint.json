@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User's public profile and settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "defaultColor": { "type": "string" },
+            "defaultBrushSize": { "type": "number" },
+            "fontFamily": { "type": "string" }
+          }
+        }
+      },
+      "required": ["uid", "displayName"]
+    },
+    "Room": {
+      "title": "Drawing Room",
+      "description": "A collaborative room for two people",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hostId": { "type": "string" },
+        "participantId": { "type": "string" },
+        "status": { "type": "string", "enum": ["waiting", "active", "closed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "hostId", "status", "createdAt"]
+    },
+    "Stroke": {
+      "title": "Drawing Stroke",
+      "description": "A single stroke drawn on the canvas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "userId": { "type": "string" },
+        "points": { "type": "array" },
+        "color": { "type": "string" },
+        "brushSize": { "type": "number" },
+        "opacity": { "type": "number" },
+        "tool": { "type": "string", "enum": ["pen", "eraser"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomId", "userId", "points", "color", "brushSize", "tool", "createdAt"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "A real-time message in the room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomId", "userId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/userProfiles/{uid}": {
+      "schema": "UserProfile",
+      "description": "Public profiles and user settings"
+    },
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Collaborative room metadata"
+    },
+    "/rooms/{roomId}/strokes/{strokeId}": {
+      "schema": "Stroke",
+      "description": "Individual drawing strokes within a room"
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat messages within a room"
+    }
+  }
+}
